@@ -652,6 +652,13 @@ async function viewTool(toolId) {
     <div class="form-group"><label>Capabilities</label><div class="tag-list">${(t.capabilities||[]).map(c=>`<span class="tag">${c}</span>`).join('')||'—'}</div></div>
     <div class="form-group"><label>Variables</label><pre>${JSON.stringify(t.variables,null,2)}</pre></div>
     <hr>
+    <div class="section-title">Skill MD <span class="text-muted" style="font-weight:normal;text-transform:none;font-size:.8rem">— instructions injected into agent system prompt when this tool is enabled</span></div>
+    <textarea id="td-skill-md" rows="8" style="font-family:monospace;font-size:.8rem">${(t.skill_md||'').replace(/</g,'&lt;')}</textarea>
+    <div class="flex gap-2 mt-2">
+      <button class="btn btn-primary btn-sm" onclick="saveSkillMd('${toolId}')">Save Skill MD</button>
+      <span id="td-skill-md-msg" class="text-muted" style="font-size:.8rem;line-height:2"></span>
+    </div>
+    <hr>
     <div class="section-title">State Management</div>
     <div class="flex gap-2 mb-2">
       ${['pending_review','approved','active','suspended','blocked','retired'].map(s =>
@@ -704,6 +711,21 @@ async function addVersion(toolId) {
 async function approveVersion(toolId, versionId) {
   try { await api('POST', `/tools/${toolId}/versions/${versionId}/approve`); viewTool(toolId); await loadTools(); }
   catch(e) { alert(e.message); }
+}
+
+async function saveSkillMd(toolId) {
+  const md = document.getElementById('td-skill-md').value;
+  const msg = document.getElementById('td-skill-md-msg');
+  try {
+    await api('PATCH', `/tools/${toolId}`, { skill_md: md });
+    await loadTools();
+    msg.textContent = '✓ Saved';
+    msg.style.color = '#6ee7b7';
+    setTimeout(() => { msg.textContent = ''; }, 2000);
+  } catch(e) {
+    msg.textContent = e.message;
+    msg.style.color = '#f87171';
+  }
 }
 
 function toggleEndpoint() {
