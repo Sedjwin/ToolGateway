@@ -14,7 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import settings
 from app.database import init_db, get_db
 from app.models import Tool, ToolExecutionLog, ToolGrant, ToolInstallRequest
-from app.routers import execute, filters, grants, logs, requests, tools
+from app.routers import builtins, execute, filters, grants, logs, requests, tools
 from app.schemas import StatsOut
 
 logging.basicConfig(
@@ -97,6 +97,7 @@ app = FastAPI(
 
 app.include_router(tools.router)
 app.include_router(grants.router)
+app.include_router(builtins.router)
 app.include_router(filters.router)
 app.include_router(execute.router)
 app.include_router(logs.router)
