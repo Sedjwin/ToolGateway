@@ -43,6 +43,7 @@ def _tool_out(tool: Tool) -> ToolOut:
         capabilities=json.loads(tool.capabilities_json or "[]"),
         variables=json.loads(tool.variables_json or "{}"),
         metadata=json.loads(tool.metadata_json or "{}"),
+        skill_md=tool.skill_md or "",
         created_at=tool.created_at,
         updated_at=tool.updated_at,
     )
@@ -91,6 +92,7 @@ async def create_tool(
         capabilities_json=json.dumps(body.capabilities),
         variables_json=json.dumps(body.variables),
         metadata_json=json.dumps(body.metadata),
+        skill_md=body.skill_md,
     )
     db.add(tool)
     await db.commit()
@@ -138,6 +140,8 @@ async def update_tool(
         tool.variables_json = json.dumps(body.variables)
     if body.metadata is not None:
         tool.metadata_json = json.dumps(body.metadata)
+    if body.skill_md is not None:
+        tool.skill_md = body.skill_md
 
     await db.commit()
     await db.refresh(tool)

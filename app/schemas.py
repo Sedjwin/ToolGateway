@@ -20,6 +20,7 @@ class ToolCreate(BaseModel):
     capabilities: list[str] = []
     variables: dict[str, Any] = {}
     metadata: dict[str, Any] = {}
+    skill_md: str = ""
 
 
 class ToolUpdate(BaseModel):
@@ -32,6 +33,7 @@ class ToolUpdate(BaseModel):
     capabilities: Optional[list[str]] = None
     variables: Optional[dict[str, Any]] = None
     metadata: Optional[dict[str, Any]] = None
+    skill_md: Optional[str] = None
 
 
 class ToolOut(BaseModel):
@@ -47,6 +49,7 @@ class ToolOut(BaseModel):
     capabilities: list[str]
     variables: dict[str, Any]
     metadata: dict[str, Any]
+    skill_md: str
     created_at: datetime
     updated_at: datetime
 

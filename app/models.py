@@ -29,6 +29,7 @@ class Tool(Base):
     variables_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
     # e.g. {"allowed_domains": ["ourpersonalemail.com"], "rate_limit_per_hour": 100}
     metadata_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
+    skill_md: Mapped[str] = mapped_column(Text, nullable=False, default="")
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
 

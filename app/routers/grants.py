@@ -4,11 +4,13 @@ from __future__ import annotations
 import json
 import logging
 
+import httpx
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auth import get_admin_principal
+from app.auth import get_admin_principal, get_principal
+from app.config import settings
 from app.database import get_db
 from app.models import Tool, ToolGrant
 from app.schemas import ToolGrantCreate, ToolGrantOut, ToolGrantUpdate
@@ -35,14 +37,18 @@ def _grant_out(grant: ToolGrant) -> ToolGrantOut:
 async def list_grants(
     tool_id: str | None = None,
     principal_id: str | None = None,
-    _: dict = Depends(get_admin_principal),
+    principal: dict = Depends(get_principal),
     db: AsyncSession = Depends(get_db),
 ):
-    """List all grants. Optionally filter by tool_id or principal_id."""
+    """List grants. Admins see all; non-admins see only their own grants."""
     query = select(ToolGrant).order_by(ToolGrant.created_at.desc())
     if tool_id:
         query = query.where(ToolGrant.tool_id == tool_id)
-    if principal_id:
+    if not principal.get("is_admin"):
+        # Non-admins may only see their own grants
+        own_id = str(principal.get("user_id", ""))
+        query = query.where(ToolGrant.principal_id == own_id)
+    elif principal_id:
         query = query.where(ToolGrant.principal_id == principal_id)
     result = await db.execute(query)
     return [_grant_out(g) for g in result.scalars().all()]
@@ -131,3 +137,21 @@ async def revoke_grant(
     await db.delete(grant)
     await db.commit()
     logger.info("Grant %d revoked by %s", grant_id, principal["username"])
+
+
+# ── Agent list proxy (for grant UI dropdown) ──────────────────────────────────
+
+agents_router = APIRouter(prefix="/api", tags=["agents"])
+
+
+@agents_router.get("/agents")
+async def list_agents(_: dict = Depends(get_admin_principal)):
+    """Proxy to AgentManager — returns agent list for the grants UI."""
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            r = await client.get(f"{settings.agentmanager_url}/agents")
+            r.raise_for_status()
+            return r.json()
+    except Exception as exc:
+        logger.warning("Could not fetch agents from AgentManager: %s", exc)
+        return []

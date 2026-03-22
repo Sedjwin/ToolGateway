@@ -202,7 +202,7 @@
       <div class="page-title">Grants</div>
       <div class="page-sub">Per-principal tool execution permissions</div>
       <div class="toolbar">
-        <button class="btn btn-primary" onclick="openModal('grant-create-modal')">+ Create Grant</button>
+        <button class="btn btn-primary" onclick="openGrantModal()">+ Create Grant</button>
         <div class="grow"></div>
         <button class="btn btn-ghost btn-sm" onclick="loadGrants()">↻ Refresh</button>
       </div>
@@ -294,6 +294,7 @@
     <div class="form-group" id="tc-endpoint-group"><label>Endpoint URL</label><input type="text" id="tc-endpoint" placeholder="http://localhost:8010/run"></div>
     <div class="form-group"><label>Capabilities (comma-separated)</label><input type="text" id="tc-caps" placeholder="network_access, secret_access"></div>
     <div class="form-group"><label>Variables (JSON object)</label><textarea id="tc-vars" rows="3">{}</textarea></div>
+    <div class="form-group"><label>Skill MD (instructions injected into agent system prompt)</label><textarea id="tc-skillmd" rows="5" placeholder="Paste the SkillMD content here — describes when and how the agent should use this tool."></textarea></div>
     <div class="form-group"><label>Initial State</label>
       <select id="tc-state">
         <option value="requested">Requested</option>
@@ -325,13 +326,25 @@
   <div class="modal">
     <div class="modal-title">Create Grant</div>
     <div class="form-group"><label>Tool *</label><select id="gc-tool"><option value="">— Select tool —</option></select></div>
-    <div class="form-row">
-      <div class="form-group"><label>Principal Type</label>
-        <select id="gc-ptype"><option value="agent">Agent</option><option value="human">Human</option></select>
-      </div>
-      <div class="form-group"><label>Principal ID *</label><input type="text" id="gc-pid" placeholder="agent-id or user-id"></div>
+    <div class="form-group"><label>Principal Type</label>
+      <select id="gc-ptype" onchange="onGrantTypeChange()">
+        <option value="agent">Agent</option>
+        <option value="human">Human</option>
+      </select>
     </div>
-    <div class="form-group"><label>Principal Name (display)</label><input type="text" id="gc-pname" placeholder="ATLAS"></div>
+    <!-- Agent section -->
+    <div id="gc-agent-section">
+      <div class="form-group"><label>Agent *</label>
+        <select id="gc-agent-select"><option value="">— Loading agents… —</option></select>
+      </div>
+    </div>
+    <!-- Human section -->
+    <div id="gc-human-section" style="display:none">
+      <div class="form-row">
+        <div class="form-group"><label>Principal ID *</label><input type="text" id="gc-pid" placeholder="user-id"></div>
+        <div class="form-group"><label>Principal Name</label><input type="text" id="gc-pname" placeholder="Username"></div>
+      </div>
+    </div>
     <div class="form-group"><label>Variable Overrides (JSON object)</label><textarea id="gc-vars" rows="3">{}</textarea></div>
     <div id="gc-error" class="login-error"></div>
     <div class="modal-footer">
@@ -461,6 +474,7 @@
 let token = localStorage.getItem('tg_token');
 let currentUser = null;
 let allTools = [];
+let allAgents = [];
 let currentFilterToolId = null;
 let currentEditFilterId = null;
 
@@ -712,7 +726,8 @@ async function submitTool() {
     endpoint_url: document.getElementById('tc-endpoint').value || null,
     method: document.getElementById('tc-method').value,
     state: document.getElementById('tc-state').value,
-    enabled: false, capabilities: caps, variables
+    enabled: false, capabilities: caps, variables,
+    skill_md: document.getElementById('tc-skillmd').value,
   };
   try {
     await api('POST', '/tools', body);
@@ -744,6 +759,32 @@ async function loadQueue() {
 }
 
 // ── Grants ─────────────────────────────────────────────────────────────────
+async function loadAgentsForGrants() {
+  try {
+    allAgents = await api('GET', '/agents');
+    const sel = document.getElementById('gc-agent-select');
+    sel.innerHTML = '<option value="">— Select agent —</option>' +
+      allAgents.map(a => `<option value="${a.agent_id}">${a.name}</option>`).join('');
+  } catch {
+    document.getElementById('gc-agent-select').innerHTML = '<option value="">— Could not load agents —</option>';
+  }
+}
+
+function onGrantTypeChange() {
+  const type = document.getElementById('gc-ptype').value;
+  document.getElementById('gc-agent-section').style.display = type === 'agent' ? 'block' : 'none';
+  document.getElementById('gc-human-section').style.display = type === 'human' ? 'block' : 'none';
+}
+
+async function openGrantModal() {
+  document.getElementById('gc-ptype').value = 'agent';
+  onGrantTypeChange();
+  document.getElementById('gc-vars').value = '{}';
+  hideErr('gc-error');
+  openModal('grant-create-modal');
+  await loadAgentsForGrants();
+}
+
 async function loadGrants() {
   try {
     const grants = await api('GET', '/grants');
@@ -784,18 +825,32 @@ async function revokeGrant(id) {
 async function submitGrant() {
   hideErr('gc-error');
   const toolId = document.getElementById('gc-tool').value;
-  const pid = document.getElementById('gc-pid').value.trim();
   if (!toolId) { showErr('gc-error', 'Select a tool'); return; }
-  if (!pid) { showErr('gc-error', 'Principal ID is required'); return; }
   let vars;
   try { vars = JSON.parse(document.getElementById('gc-vars').value || '{}'); }
   catch { showErr('gc-error', 'Variable overrides must be valid JSON'); return; }
+
+  const type = document.getElementById('gc-ptype').value;
+  let pid, pname;
+  if (type === 'agent') {
+    const agentId = document.getElementById('gc-agent-select').value;
+    if (!agentId) { showErr('gc-error', 'Select an agent'); return; }
+    const agent = allAgents.find(a => a.agent_id === agentId);
+    if (!agent || !agent.um_user_id) { showErr('gc-error', 'Agent has no UserManager principal — was it registered correctly?'); return; }
+    pid = String(agent.um_user_id);
+    pname = `agent_${agent.agent_id}`;
+  } else {
+    pid = document.getElementById('gc-pid').value.trim();
+    pname = document.getElementById('gc-pname').value.trim();
+    if (!pid) { showErr('gc-error', 'Principal ID is required'); return; }
+  }
+
   try {
     await api('POST', '/grants', {
       tool_id: toolId,
-      principal_type: document.getElementById('gc-ptype').value,
+      principal_type: type,
       principal_id: pid,
-      principal_name: document.getElementById('gc-pname').value,
+      principal_name: pname,
       enabled: true,
       variables_override: vars,
     });
@@ -911,7 +966,9 @@ function addCondition() {
     <input type="text" placeholder="target (e.g. destination)" style="flex:1.2">
     <select style="flex:1">
       <option value="ends_with">ends with</option>
+      <option value="not_ends_with">not ends with</option>
       <option value="starts_with">starts with</option>
+      <option value="not_starts_with">not starts with</option>
       <option value="contains">contains</option>
       <option value="not_contains">not contains</option>
       <option value="equals">equals</option>

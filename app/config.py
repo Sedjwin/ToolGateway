@@ -7,6 +7,7 @@ class Settings(BaseSettings):
     database_url: str = "sqlite+aiosqlite:///./data/toolgateway.db"
 
     usermanager_url: str = "http://localhost:8005"
+    agentmanager_url: str = "http://localhost:8003"
     aigateway_url: str = "http://localhost:8001"
     evaluator_endpoint: str = "/gateway/evaluate"
     http_timeout_seconds: int = 15
