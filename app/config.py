@@ -3,7 +3,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
     host: str = "127.0.0.1"
-    port: int = 13377
+    port: int = 8006
     database_url: str = "sqlite+aiosqlite:///./data/toolgateway.db"
 
     usermanager_url: str = "http://localhost:8005"
