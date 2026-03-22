@@ -1,0 +1,1109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ToolGateway Admin</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', system-ui, sans-serif; background: #0f1117; color: #e2e8f0; min-height: 100vh; }
+  a { color: #63b3ed; text-decoration: none; }
+
+  /* ── Layout ── */
+  .layout { display: flex; height: 100vh; overflow: hidden; }
+  .sidebar { width: 220px; background: #1a1f2e; border-right: 1px solid #2d3748; display: flex; flex-direction: column; flex-shrink: 0; }
+  .sidebar-logo { padding: 20px 16px 12px; font-size: 1.1rem; font-weight: 700; color: #a78bfa; border-bottom: 1px solid #2d3748; display: flex; align-items: center; gap: 8px; }
+  .sidebar-logo span { font-size: 1.3rem; }
+  .sidebar-nav { flex: 1; padding: 8px 0; overflow-y: auto; }
+  .nav-item { display: flex; align-items: center; gap: 10px; padding: 10px 16px; cursor: pointer; color: #94a3b8; font-size: 0.9rem; transition: all .15s; border-left: 3px solid transparent; }
+  .nav-item:hover { background: #2d3748; color: #e2e8f0; }
+  .nav-item.active { background: #1e2a45; color: #a78bfa; border-left-color: #a78bfa; font-weight: 600; }
+  .nav-item .icon { width: 18px; text-align: center; font-size: 1rem; }
+  .sidebar-footer { padding: 12px 16px; border-top: 1px solid #2d3748; font-size: 0.75rem; color: #64748b; }
+
+  .main { flex: 1; overflow-y: auto; }
+  .page { display: none; padding: 28px 32px; }
+  .page.active { display: block; }
+  .page-title { font-size: 1.4rem; font-weight: 700; color: #f1f5f9; margin-bottom: 4px; }
+  .page-sub { color: #64748b; font-size: 0.85rem; margin-bottom: 24px; }
+
+  /* ── Auth ── */
+  #login-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.85); display: flex; align-items: center; justify-content: center; z-index: 1000; }
+  .login-box { background: #1a1f2e; border: 1px solid #2d3748; border-radius: 12px; padding: 32px; width: 340px; }
+  .login-box h2 { color: #a78bfa; margin-bottom: 20px; font-size: 1.2rem; }
+  .login-error { background: #3b1a1a; border: 1px solid #f87171; color: #fca5a5; border-radius: 6px; padding: 8px 12px; font-size: 0.85rem; margin-bottom: 12px; display: none; }
+
+  /* ── Components ── */
+  .card { background: #1a1f2e; border: 1px solid #2d3748; border-radius: 10px; padding: 20px; }
+  .card + .card, .card + .section { margin-top: 16px; }
+  .section { margin-top: 24px; }
+  .section-title { font-size: 1rem; font-weight: 600; color: #cbd5e1; margin-bottom: 14px; display: flex; align-items: center; gap: 8px; }
+
+  .stats-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 14px; margin-bottom: 24px; }
+  .stat-card { background: #1a1f2e; border: 1px solid #2d3748; border-radius: 10px; padding: 16px; }
+  .stat-label { font-size: 0.75rem; color: #64748b; text-transform: uppercase; letter-spacing: .05em; }
+  .stat-value { font-size: 1.8rem; font-weight: 700; color: #a78bfa; margin-top: 4px; }
+  .stat-sub { font-size: 0.75rem; color: #64748b; margin-top: 2px; }
+
+  /* ── Forms ── */
+  .form-group { margin-bottom: 14px; }
+  label { display: block; font-size: 0.8rem; color: #94a3b8; margin-bottom: 5px; }
+  input[type=text], input[type=password], input[type=number], select, textarea {
+    width: 100%; background: #0f1117; border: 1px solid #2d3748; border-radius: 6px;
+    color: #e2e8f0; padding: 8px 10px; font-size: 0.875rem; font-family: inherit; outline: none;
+    transition: border-color .15s;
+  }
+  input:focus, select:focus, textarea:focus { border-color: #7c3aed; }
+  textarea { resize: vertical; min-height: 80px; }
+  .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+  /* ── Buttons ── */
+  .btn { display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; border-radius: 6px;
+    font-size: 0.85rem; font-weight: 500; cursor: pointer; border: none; transition: all .15s; font-family: inherit; }
+  .btn-primary { background: #7c3aed; color: #fff; }
+  .btn-primary:hover { background: #6d28d9; }
+  .btn-success { background: #059669; color: #fff; }
+  .btn-success:hover { background: #047857; }
+  .btn-danger { background: #dc2626; color: #fff; }
+  .btn-danger:hover { background: #b91c1c; }
+  .btn-ghost { background: transparent; color: #94a3b8; border: 1px solid #374151; }
+  .btn-ghost:hover { background: #2d3748; color: #e2e8f0; }
+  .btn-sm { padding: 4px 10px; font-size: 0.8rem; }
+  .btn:disabled { opacity: .5; cursor: not-allowed; }
+
+  /* ── Tables ── */
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+  th { text-align: left; padding: 10px 12px; color: #64748b; font-size: 0.75rem; text-transform: uppercase;
+    letter-spacing: .05em; border-bottom: 1px solid #2d3748; background: #111827; }
+  td { padding: 10px 12px; border-bottom: 1px solid #1e2a3a; vertical-align: middle; }
+  tr:hover td { background: #1e2a3a; }
+  .actions { display: flex; gap: 6px; }
+
+  /* ── Badges ── */
+  .badge { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 999px; font-size: 0.72rem; font-weight: 600; }
+  .badge-active, .badge-ok, .badge-completed, .badge-approved { background: #064e3b; color: #6ee7b7; }
+  .badge-pending, .badge-pending_review, .badge-requested { background: #78350f; color: #fcd34d; }
+  .badge-quarantined, .badge-suspended, .badge-blocked { background: #7c2d12; color: #fb923c; }
+  .badge-rejected, .badge-failed { background: #450a0a; color: #f87171; }
+  .badge-retired { background: #1e293b; color: #64748b; }
+  .badge-logical { background: #1e3a5f; color: #93c5fd; }
+  .badge-agent { background: #2e1065; color: #c4b5fd; }
+  .badge-incoming { background: #0c4a6e; color: #7dd3fc; }
+  .badge-outgoing { background: #3b0764; color: #e879f9; }
+
+  /* ── Modal ── */
+  .modal-bg { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.7); z-index: 500; align-items: center; justify-content: center; }
+  .modal-bg.open { display: flex; }
+  .modal { background: #1a1f2e; border: 1px solid #2d3748; border-radius: 12px; padding: 24px;
+    width: 560px; max-width: 95vw; max-height: 90vh; overflow-y: auto; }
+  .modal-title { font-size: 1rem; font-weight: 700; color: #f1f5f9; margin-bottom: 16px; }
+  .modal-footer { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; padding-top: 14px; border-top: 1px solid #2d3748; }
+
+  /* ── Filter wizard ── */
+  .wizard-step { display: none; }
+  .wizard-step.active { display: block; }
+  .condition-row { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
+  .condition-row select, .condition-row input { flex: 1; }
+  .condition-row .btn-sm { flex-shrink: 0; }
+
+  /* ── Misc ── */
+  .empty { text-align: center; color: #4b5563; padding: 40px; font-size: 0.9rem; }
+  .text-danger { color: #f87171; }
+  .text-muted { color: #64748b; font-size: 0.8rem; }
+  .mt-2 { margin-top: 8px; }
+  .mb-2 { margin-bottom: 8px; }
+  .flex { display: flex; align-items: center; }
+  .gap-2 { gap: 8px; }
+  .grow { flex: 1; }
+  .toolbar { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; }
+  .toolbar .grow { flex: 1; }
+  hr { border: none; border-top: 1px solid #2d3748; margin: 16px 0; }
+  code { background: #111827; color: #a78bfa; padding: 2px 6px; border-radius: 4px; font-size: 0.82rem; }
+  pre { background: #111827; border: 1px solid #2d3748; border-radius: 6px; padding: 12px; font-size: 0.8rem;
+    color: #94a3b8; overflow-x: auto; margin-top: 8px; max-height: 200px; overflow-y: auto; }
+  .tag-list { display: flex; flex-wrap: wrap; gap: 4px; }
+  .tag { background: #1e293b; color: #94a3b8; border-radius: 4px; padding: 2px 7px; font-size: 0.75rem; }
+</style>
+</head>
+<body>
+
+<!-- Login Overlay -->
+<div id="login-overlay">
+  <div class="login-box">
+    <h2>⚙ ToolGateway Admin</h2>
+    <div class="login-error" id="login-error"></div>
+    <div class="form-group"><label>Username</label><input type="text" id="login-user" autofocus></div>
+    <div class="form-group"><label>Password</label><input type="password" id="login-pass"></div>
+    <button class="btn btn-primary" style="width:100%" onclick="doLogin()">Sign In</button>
+  </div>
+</div>
+
+<!-- Main Layout -->
+<div class="layout">
+  <aside class="sidebar">
+    <div class="sidebar-logo"><span>⚙</span> ToolGateway</div>
+    <nav class="sidebar-nav">
+      <div class="nav-item active" onclick="nav('dashboard')"><span class="icon">📊</span> Dashboard</div>
+      <div class="nav-item" onclick="nav('tools')"><span class="icon">🔧</span> Tools</div>
+      <div class="nav-item" onclick="nav('queue')"><span class="icon">📋</span> Approval Queue</div>
+      <div class="nav-item" onclick="nav('grants')"><span class="icon">🔑</span> Grants</div>
+      <div class="nav-item" onclick="nav('filters')"><span class="icon">🛡</span> Filters</div>
+      <div class="nav-item" onclick="nav('logs')"><span class="icon">📜</span> Logs</div>
+      <div class="nav-item" onclick="nav('requests')"><span class="icon">📬</span> Requests</div>
+    </nav>
+    <div class="sidebar-footer" id="user-footer">Not signed in</div>
+  </aside>
+
+  <main class="main">
+
+    <!-- Dashboard -->
+    <div class="page active" id="page-dashboard">
+      <div class="page-title">Dashboard</div>
+      <div class="page-sub">System overview</div>
+      <div class="stats-grid" id="stats-grid">
+        <div class="stat-card"><div class="stat-label">Tools Total</div><div class="stat-value" id="s-tools-total">—</div></div>
+        <div class="stat-card"><div class="stat-label">Active Tools</div><div class="stat-value" id="s-tools-active">—</div></div>
+        <div class="stat-card"><div class="stat-label">Pending Review</div><div class="stat-value" id="s-tools-pending">—</div></div>
+        <div class="stat-card"><div class="stat-label">Grants</div><div class="stat-value" id="s-grants">—</div></div>
+        <div class="stat-card"><div class="stat-label">Executions Today</div><div class="stat-value" id="s-exec-today">—</div></div>
+        <div class="stat-card"><div class="stat-label">Executions 7d</div><div class="stat-value" id="s-exec-7d">—</div></div>
+        <div class="stat-card"><div class="stat-label">Rejections 7d</div><div class="stat-value" id="s-rej-7d">—</div></div>
+        <div class="stat-card"><div class="stat-label">Install Requests</div><div class="stat-value" id="s-requests">—</div></div>
+      </div>
+      <div class="section">
+        <div class="section-title">Recent Executions</div>
+        <div class="card table-wrap"><div id="dash-logs-table"><div class="empty">Loading...</div></div></div>
+      </div>
+    </div>
+
+    <!-- Tools -->
+    <div class="page" id="page-tools">
+      <div class="page-title">Tools</div>
+      <div class="page-sub">Registry of all tools in the gateway</div>
+      <div class="toolbar">
+        <button class="btn btn-primary" onclick="openModal('tool-create-modal')">+ Register Tool</button>
+        <div class="grow"></div>
+        <button class="btn btn-ghost btn-sm" onclick="loadTools()">↻ Refresh</button>
+      </div>
+      <div class="card table-wrap"><div id="tools-table"><div class="empty">Loading...</div></div></div>
+    </div>
+
+    <!-- Approval Queue -->
+    <div class="page" id="page-queue">
+      <div class="page-title">Approval Queue</div>
+      <div class="page-sub">Tools and versions awaiting review</div>
+      <div class="toolbar"><button class="btn btn-ghost btn-sm" onclick="loadQueue()">↻ Refresh</button></div>
+      <div class="card table-wrap"><div id="queue-table"><div class="empty">Loading...</div></div></div>
+    </div>
+
+    <!-- Grants -->
+    <div class="page" id="page-grants">
+      <div class="page-title">Grants</div>
+      <div class="page-sub">Per-principal tool execution permissions</div>
+      <div class="toolbar">
+        <button class="btn btn-primary" onclick="openModal('grant-create-modal')">+ Create Grant</button>
+        <div class="grow"></div>
+        <button class="btn btn-ghost btn-sm" onclick="loadGrants()">↻ Refresh</button>
+      </div>
+      <div class="card table-wrap"><div id="grants-table"><div class="empty">Loading...</div></div></div>
+    </div>
+
+    <!-- Filters -->
+    <div class="page" id="page-filters">
+      <div class="page-title">Filters</div>
+      <div class="page-sub">Policy filters applied to incoming and outgoing tool calls</div>
+      <div class="toolbar">
+        <div class="form-group" style="margin:0;flex:1;max-width:320px">
+          <select id="filter-tool-select" onchange="loadFilters()">
+            <option value="">— Select a tool —</option>
+          </select>
+        </div>
+        <button class="btn btn-primary" onclick="openFilterWizard()" id="filter-add-btn" disabled>+ Add Filter</button>
+        <button class="btn btn-ghost btn-sm" onclick="loadFilters()">↻ Refresh</button>
+      </div>
+      <div class="card table-wrap"><div id="filters-table"><div class="empty">Select a tool to see its filters</div></div></div>
+    </div>
+
+    <!-- Logs -->
+    <div class="page" id="page-logs">
+      <div class="page-title">Execution Logs</div>
+      <div class="page-sub">Full audit trail of tool calls</div>
+      <div class="toolbar">
+        <select id="log-status-filter" onchange="loadLogs()" style="width:140px">
+          <option value="">All statuses</option>
+          <option value="completed">Completed</option>
+          <option value="rejected">Rejected</option>
+          <option value="failed">Failed</option>
+        </select>
+        <div class="grow"></div>
+        <button class="btn btn-ghost btn-sm" onclick="loadLogs()">↻ Refresh</button>
+      </div>
+      <div class="card table-wrap"><div id="logs-table"><div class="empty">Loading...</div></div></div>
+    </div>
+
+    <!-- Requests -->
+    <div class="page" id="page-requests">
+      <div class="page-title">Install Requests</div>
+      <div class="page-sub">Tool install requests from agents and users</div>
+      <div class="toolbar">
+        <select id="req-status-filter" onchange="loadRequests()" style="width:160px">
+          <option value="">All statuses</option>
+          <option value="requested">Pending</option>
+          <option value="approved">Approved</option>
+          <option value="rejected">Rejected</option>
+        </select>
+        <div class="grow"></div>
+        <button class="btn btn-ghost btn-sm" onclick="loadRequests()">↻ Refresh</button>
+      </div>
+      <div class="card table-wrap"><div id="requests-table"><div class="empty">Loading...</div></div></div>
+    </div>
+
+  </main>
+</div>
+
+<!-- ── Modals ── -->
+
+<!-- Register Tool -->
+<div class="modal-bg" id="tool-create-modal">
+  <div class="modal">
+    <div class="modal-title">Register New Tool</div>
+    <div class="form-row">
+      <div class="form-group"><label>Name *</label><input type="text" id="tc-name" placeholder="email"></div>
+      <div class="form-group"><label>Category</label>
+        <select id="tc-category">
+          <option value="custom_local">Custom Local</option>
+          <option value="first_party">First Party</option>
+          <option value="external">External</option>
+          <option value="skill">Skill</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-group"><label>Description</label><input type="text" id="tc-desc" placeholder="What this tool does"></div>
+    <div class="form-row">
+      <div class="form-group"><label>Kind</label>
+        <select id="tc-kind" onchange="toggleEndpoint()">
+          <option value="http">HTTP</option>
+          <option value="echo">Echo (test)</option>
+        </select>
+      </div>
+      <div class="form-group"><label>HTTP Method</label>
+        <select id="tc-method"><option value="POST">POST</option><option value="GET">GET</option><option value="PUT">PUT</option></select>
+      </div>
+    </div>
+    <div class="form-group" id="tc-endpoint-group"><label>Endpoint URL</label><input type="text" id="tc-endpoint" placeholder="http://localhost:8010/run"></div>
+    <div class="form-group"><label>Capabilities (comma-separated)</label><input type="text" id="tc-caps" placeholder="network_access, secret_access"></div>
+    <div class="form-group"><label>Variables (JSON object)</label><textarea id="tc-vars" rows="3">{}</textarea></div>
+    <div class="form-group"><label>Initial State</label>
+      <select id="tc-state">
+        <option value="requested">Requested</option>
+        <option value="pending_review">Pending Review</option>
+        <option value="approved">Approved</option>
+      </select>
+    </div>
+    <div id="tc-error" class="login-error"></div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('tool-create-modal')">Cancel</button>
+      <button class="btn btn-primary" onclick="submitTool()">Register</button>
+    </div>
+  </div>
+</div>
+
+<!-- Tool Detail / Edit -->
+<div class="modal-bg" id="tool-detail-modal">
+  <div class="modal">
+    <div class="modal-title" id="td-title">Tool Detail</div>
+    <div id="td-body"></div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('tool-detail-modal')">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- Create Grant -->
+<div class="modal-bg" id="grant-create-modal">
+  <div class="modal">
+    <div class="modal-title">Create Grant</div>
+    <div class="form-group"><label>Tool *</label><select id="gc-tool"><option value="">— Select tool —</option></select></div>
+    <div class="form-row">
+      <div class="form-group"><label>Principal Type</label>
+        <select id="gc-ptype"><option value="agent">Agent</option><option value="human">Human</option></select>
+      </div>
+      <div class="form-group"><label>Principal ID *</label><input type="text" id="gc-pid" placeholder="agent-id or user-id"></div>
+    </div>
+    <div class="form-group"><label>Principal Name (display)</label><input type="text" id="gc-pname" placeholder="ATLAS"></div>
+    <div class="form-group"><label>Variable Overrides (JSON object)</label><textarea id="gc-vars" rows="3">{}</textarea></div>
+    <div id="gc-error" class="login-error"></div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('grant-create-modal')">Cancel</button>
+      <button class="btn btn-success" onclick="submitGrant()">Create Grant</button>
+    </div>
+  </div>
+</div>
+
+<!-- Log Detail -->
+<div class="modal-bg" id="log-detail-modal">
+  <div class="modal" style="width:680px">
+    <div class="modal-title">Execution Log Detail</div>
+    <div id="log-detail-body"></div>
+    <div class="modal-footer"><button class="btn btn-ghost" onclick="closeModal('log-detail-modal')">Close</button></div>
+  </div>
+</div>
+
+<!-- Filter Wizard -->
+<div class="modal-bg" id="filter-wizard-modal">
+  <div class="modal" style="width:600px">
+    <div class="modal-title">Filter Wizard</div>
+    <div class="form-group">
+      <label>Filter Type</label>
+      <select id="fw-type" onchange="switchWizardType()">
+        <option value="logical">Logical Filter (deterministic rules)</option>
+        <option value="agent">Agent-Evaluated Filter (AI policy check)</option>
+      </select>
+    </div>
+
+    <!-- Logical wizard -->
+    <div id="fw-logical">
+      <div class="form-row">
+        <div class="form-group"><label>Name *</label><input type="text" id="fw-l-name" placeholder="domain-restriction"></div>
+        <div class="form-group"><label>Phase</label>
+          <select id="fw-l-phase"><option value="incoming">Incoming</option><option value="outgoing">Outgoing</option></select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>Priority (lower = higher priority)</label><input type="number" id="fw-l-priority" value="100" min="1" max="9999"></div>
+        <div class="form-group"><label>Scope</label>
+          <select id="fw-l-scope" onchange="toggleScopeInput('l')">
+            <option value="all">All Principals</option>
+            <option value="selected">Selected Principals</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group" id="fw-l-scope-input" style="display:none">
+        <label>Principals (comma-separated, format: type:id)</label>
+        <input type="text" id="fw-l-principals" placeholder="agent:123, human:456">
+      </div>
+      <div class="form-group"><label>Condition Join</label>
+        <select id="fw-l-join"><option value="AND">AND (all must match)</option><option value="OR">OR (any must match)</option></select>
+      </div>
+      <div class="section-title">Conditions</div>
+      <div id="fw-conditions"></div>
+      <button class="btn btn-ghost btn-sm mt-2" onclick="addCondition()">+ Add Condition</button>
+      <div class="form-group mt-2"><label>Action on Match</label>
+        <select id="fw-l-action" onchange="toggleActionFields()">
+          <option value="deny">Deny</option>
+          <option value="redact">Redact Fields</option>
+          <option value="replace">Replace Output</option>
+          <option value="modify">Modify Fields</option>
+          <option value="pass">Pass (no-op)</option>
+        </select>
+      </div>
+      <div class="form-group" id="fw-l-redact-group" style="display:none">
+        <label>Redact Fields (comma-separated)</label><input type="text" id="fw-l-redact" placeholder="password, token">
+      </div>
+      <div class="form-group" id="fw-l-replace-group" style="display:none">
+        <label>Replacement JSON</label><textarea id="fw-l-replace" rows="2">{"message": "tool complete, output redacted"}</textarea>
+      </div>
+      <div class="form-group"><label>Rejection / Modification Message</label><input type="text" id="fw-l-message" placeholder="agent5 may only send to ourpersonalemail.com"></div>
+      <div class="form-group">
+        <label><input type="checkbox" id="fw-l-transparent" checked> Transparent (do not disclose filter to agent)</label>
+      </div>
+    </div>
+
+    <!-- Agent-evaluated wizard -->
+    <div id="fw-agent" style="display:none">
+      <div class="form-row">
+        <div class="form-group"><label>Name *</label><input type="text" id="fw-a-name" placeholder="harm-check"></div>
+        <div class="form-group"><label>Phase</label>
+          <select id="fw-a-phase"><option value="incoming">Incoming</option><option value="outgoing">Outgoing</option></select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>Priority</label><input type="number" id="fw-a-priority" value="100" min="1" max="9999"></div>
+        <div class="form-group"><label>Scope</label>
+          <select id="fw-a-scope" onchange="toggleScopeInput('a')">
+            <option value="all">All Principals</option>
+            <option value="selected">Selected Principals</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group" id="fw-a-scope-input" style="display:none">
+        <label>Principals (comma-separated)</label>
+        <input type="text" id="fw-a-principals" placeholder="agent:123">
+      </div>
+      <div class="form-group"><label>Evaluator Agent ID *</label><input type="text" id="fw-a-agent" placeholder="moderation_offline"></div>
+      <div class="form-group"><label>Policy Question *</label>
+        <textarea id="fw-a-question" rows="3" placeholder="Does this message contain content that could embarrass the organisation or be considered harassment?"></textarea>
+      </div>
+      <div class="form-group"><label>Confidence Threshold (0–1, optional)</label><input type="number" id="fw-a-confidence" placeholder="0.8" min="0" max="1" step="0.05"></div>
+      <div class="form-group"><label>Fallback if evaluator unavailable</label>
+        <select id="fw-a-fallback"><option value="deny">Deny</option><option value="allow">Allow</option><option value="escalate">Escalate to admin</option></select>
+      </div>
+      <div class="form-group">
+        <label><input type="checkbox" id="fw-a-transparent" checked> Transparent</label>
+      </div>
+      <div class="section-title mt-2">Dry Run</div>
+      <div class="form-group"><label>Sample Payload (JSON)</label><textarea id="fw-a-dryrun-payload" rows="3">{}</textarea></div>
+      <button class="btn btn-ghost btn-sm" onclick="runDryRun()">▶ Run Dry Run</button>
+      <pre id="fw-a-dryrun-result" style="display:none"></pre>
+    </div>
+
+    <div id="fw-error" class="login-error mt-2"></div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('filter-wizard-modal')">Cancel</button>
+      <button class="btn btn-primary" onclick="submitFilter()">Save Filter</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── State ──────────────────────────────────────────────────────────────────
+let token = localStorage.getItem('tg_token');
+let currentUser = null;
+let allTools = [];
+let currentFilterToolId = null;
+let currentEditFilterId = null;
+
+// ── API ────────────────────────────────────────────────────────────────────
+async function api(method, path, body) {
+  const opts = { method, headers: { 'Content-Type': 'application/json' } };
+  if (token) opts.headers['Authorization'] = 'Bearer ' + token;
+  if (body !== undefined) opts.body = JSON.stringify(body);
+  const r = await fetch('/api' + path, opts);
+  if (r.status === 204) return null;
+  const data = await r.json();
+  if (!r.ok) throw new Error(data.detail || JSON.stringify(data));
+  return data;
+}
+
+// ── Auth ───────────────────────────────────────────────────────────────────
+async function doLogin() {
+  const u = document.getElementById('login-user').value.trim();
+  const p = document.getElementById('login-pass').value;
+  const err = document.getElementById('login-error');
+  err.style.display = 'none';
+  try {
+    const data = await api('POST', '/auth/login', { username: u, password: p });
+    if (!data.access_token) throw new Error('No token returned');
+    token = data.access_token;
+    localStorage.setItem('tg_token', token);
+    document.getElementById('login-overlay').style.display = 'none';
+    afterLogin(data);
+  } catch(e) {
+    err.textContent = e.message;
+    err.style.display = 'block';
+  }
+}
+document.getElementById('login-pass').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+
+async function afterLogin(data) {
+  currentUser = data;
+  const name = data.display_name || data.username || 'Admin';
+  document.getElementById('user-footer').textContent = '👤 ' + name;
+  initPage();
+}
+
+if (token) {
+  // Try to use saved token
+  api('GET', '/stats').then(() => {
+    document.getElementById('login-overlay').style.display = 'none';
+    afterLogin({ username: 'Admin' });
+  }).catch(() => {
+    localStorage.removeItem('tg_token');
+    token = null;
+  });
+}
+
+// ── Navigation ─────────────────────────────────────────────────────────────
+function nav(page) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('page-' + page).classList.add('active');
+  const items = document.querySelectorAll('.nav-item');
+  items.forEach(item => { if (item.textContent.trim().toLowerCase().includes(page)) item.classList.add('active'); });
+  if (page === 'dashboard') loadDashboard();
+  if (page === 'tools') loadTools();
+  if (page === 'queue') loadQueue();
+  if (page === 'grants') loadGrants();
+  if (page === 'filters') loadFiltersPage();
+  if (page === 'logs') loadLogs();
+  if (page === 'requests') loadRequests();
+}
+
+function initPage() {
+  loadDashboard();
+  loadToolList(); // for selects
+}
+
+// ── Helpers ────────────────────────────────────────────────────────────────
+function badge(cls) { return `<span class="badge badge-${cls}">${cls}</span>`; }
+function stateBadge(s) {
+  const map = { active:'active', approved:'approved', completed:'completed', ok:'ok',
+    pending_review:'pending', quarantined:'quarantined', requested:'pending',
+    suspended:'suspended', blocked:'quarantined', retired:'retired',
+    rejected:'rejected', failed:'failed', granted:'ok', assignable:'ok' };
+  return `<span class="badge badge-${map[s]||'pending'}">${s}</span>`;
+}
+function ts(iso) { return new Date(iso+'Z').toLocaleString(); }
+function openModal(id) { document.getElementById(id).classList.add('open'); }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+function showErr(id, msg) { const el = document.getElementById(id); el.textContent = msg; el.style.display = 'block'; }
+function hideErr(id) { document.getElementById(id).style.display = 'none'; }
+function parseJSON(val, fallback) { try { return JSON.parse(val); } catch { return fallback; } }
+
+// ── Dashboard ──────────────────────────────────────────────────────────────
+async function loadDashboard() {
+  try {
+    const s = await api('GET', '/stats');
+    document.getElementById('s-tools-total').textContent = s.tools_total;
+    document.getElementById('s-tools-active').textContent = s.tools_active;
+    document.getElementById('s-tools-pending').textContent = s.tools_pending_review;
+    document.getElementById('s-grants').textContent = s.grants_total;
+    document.getElementById('s-exec-today').textContent = s.executions_today;
+    document.getElementById('s-exec-7d').textContent = s.executions_7d;
+    document.getElementById('s-rej-7d').textContent = s.rejections_7d;
+    document.getElementById('s-requests').textContent = s.install_requests_pending;
+  } catch {}
+  try {
+    const logs = await api('GET', '/logs?limit=10');
+    renderDashLogs(logs);
+  } catch {}
+}
+
+function renderDashLogs(logs) {
+  const el = document.getElementById('dash-logs-table');
+  if (!logs.length) { el.innerHTML = '<div class="empty">No executions yet</div>'; return; }
+  el.innerHTML = `<table><thead><tr><th>Tool</th><th>Principal</th><th>Status</th><th>Time</th></tr></thead><tbody>
+    ${logs.map(l => `<tr>
+      <td><code>${l.tool_name}</code></td>
+      <td>${l.principal_name||l.principal_id} <span class="text-muted">(${l.principal_type})</span></td>
+      <td>${stateBadge(l.status)}</td>
+      <td class="text-muted">${ts(l.created_at)}</td>
+    </tr>`).join('')}</tbody></table>`;
+}
+
+// ── Tools ──────────────────────────────────────────────────────────────────
+async function loadToolList() {
+  try {
+    allTools = await api('GET', '/tools');
+    // Populate tool selects
+    const selects = ['filter-tool-select', 'gc-tool'];
+    selects.forEach(id => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      const prev = el.value;
+      const opts = id === 'filter-tool-select' ? '<option value="">— Select a tool —</option>' : '<option value="">— Select tool —</option>';
+      el.innerHTML = opts + allTools.map(t => `<option value="${t.tool_id}">${t.name}</option>`).join('');
+      if (prev) el.value = prev;
+    });
+  } catch {}
+}
+
+async function loadTools() {
+  await loadToolList();
+  renderTools(allTools);
+}
+
+function renderTools(tools) {
+  const el = document.getElementById('tools-table');
+  if (!tools.length) { el.innerHTML = '<div class="empty">No tools registered</div>'; return; }
+  el.innerHTML = `<table><thead><tr><th>Name</th><th>Category</th><th>Kind</th><th>State</th><th>Enabled</th><th>Actions</th></tr></thead><tbody>
+    ${tools.map(t => `<tr>
+      <td><strong>${t.name}</strong><div class="text-muted">${t.description||''}</div></td>
+      <td><span class="tag">${t.category}</span></td>
+      <td><code>${t.kind}</code></td>
+      <td>${stateBadge(t.state)}</td>
+      <td>${t.enabled ? '✅' : '❌'}</td>
+      <td><div class="actions">
+        <button class="btn btn-ghost btn-sm" onclick="viewTool('${t.tool_id}')">Detail</button>
+        <button class="btn btn-ghost btn-sm" onclick="toggleEnabled('${t.tool_id}',${!t.enabled})">${t.enabled?'Disable':'Enable'}</button>
+        <button class="btn btn-danger btn-sm" onclick="retireTool('${t.tool_id}','${t.name}')">Retire</button>
+      </div></td>
+    </tr>`).join('')}</tbody></table>`;
+}
+
+async function viewTool(toolId) {
+  const t = allTools.find(x => x.tool_id === toolId);
+  if (!t) return;
+  let versions = [];
+  try { versions = await api('GET', `/tools/${toolId}/versions`); } catch {}
+  document.getElementById('td-title').textContent = t.name;
+  document.getElementById('td-body').innerHTML = `
+    <div class="form-row">
+      <div><label>State</label><div>${stateBadge(t.state)}</div></div>
+      <div><label>Category</label><div><span class="tag">${t.category}</span></div></div>
+    </div>
+    <div class="form-group mt-2"><label>Description</label><div>${t.description||'—'}</div></div>
+    ${t.kind==='http'?`<div class="form-group"><label>Endpoint</label><code>${t.endpoint_url||'—'}</code></div>`:''}
+    <div class="form-group"><label>Capabilities</label><div class="tag-list">${(t.capabilities||[]).map(c=>`<span class="tag">${c}</span>`).join('')||'—'}</div></div>
+    <div class="form-group"><label>Variables</label><pre>${JSON.stringify(t.variables,null,2)}</pre></div>
+    <hr>
+    <div class="section-title">State Management</div>
+    <div class="flex gap-2 mb-2">
+      ${['pending_review','approved','active','suspended','blocked','retired'].map(s =>
+        `<button class="btn btn-ghost btn-sm" onclick="setState('${toolId}','${s}')">→ ${s}</button>`
+      ).join('')}
+    </div>
+    <div class="flex gap-2">
+      <button class="btn btn-success btn-sm" onclick="toggleEnabled('${toolId}',true)">Enable</button>
+      <button class="btn btn-danger btn-sm" onclick="toggleEnabled('${toolId}',false)">Disable</button>
+    </div>
+    <hr>
+    <div class="section-title">Versions</div>
+    ${versions.length ? `<table style="width:100%;font-size:.8rem"><thead><tr><th>Version</th><th>State</th><th>Reviewed By</th><th>Date</th><th></th></tr></thead><tbody>
+      ${versions.map(v=>`<tr>
+        <td><code>${v.version}</code></td><td>${stateBadge(v.state)}</td>
+        <td>${v.reviewed_by||'—'}</td><td class="text-muted">${v.reviewed_at?ts(v.reviewed_at):'—'}</td>
+        <td>${v.state==='pending_review'?`<button class="btn btn-success btn-sm" onclick="approveVersion('${toolId}',${v.id})">Approve</button>`:''}
+        </td></tr>`).join('')}</tbody></table>` : '<div class="empty">No versions</div>'}
+    <div class="flex gap-2 mt-2">
+      <input type="text" id="new-ver-str" placeholder="v1.2.0" style="width:120px">
+      <button class="btn btn-ghost btn-sm" onclick="addVersion('${toolId}')">Add Version</button>
+    </div>
+  `;
+  openModal('tool-detail-modal');
+}
+
+async function setState(toolId, newState) {
+  try { await api('PATCH', `/tools/${toolId}`, { state: newState }); await loadTools(); viewTool(toolId); }
+  catch(e) { alert(e.message); }
+}
+
+async function toggleEnabled(toolId, enabled) {
+  try { await api('PATCH', `/tools/${toolId}`, { enabled }); await loadTools(); }
+  catch(e) { alert(e.message); }
+}
+
+async function retireTool(toolId, name) {
+  if (!confirm(`Retire tool "${name}"? It will be disabled and set to retired.`)) return;
+  try { await api('DELETE', `/tools/${toolId}`); await loadTools(); }
+  catch(e) { alert(e.message); }
+}
+
+async function addVersion(toolId) {
+  const v = document.getElementById('new-ver-str').value.trim();
+  if (!v) return;
+  try { await api('POST', `/tools/${toolId}/versions`, { version: v }); viewTool(toolId); await loadTools(); }
+  catch(e) { alert(e.message); }
+}
+
+async function approveVersion(toolId, versionId) {
+  try { await api('POST', `/tools/${toolId}/versions/${versionId}/approve`); viewTool(toolId); await loadTools(); }
+  catch(e) { alert(e.message); }
+}
+
+function toggleEndpoint() {
+  const kind = document.getElementById('tc-kind').value;
+  document.getElementById('tc-endpoint-group').style.display = kind === 'http' ? 'block' : 'none';
+}
+
+async function submitTool() {
+  hideErr('tc-error');
+  const name = document.getElementById('tc-name').value.trim();
+  if (!name) { showErr('tc-error', 'Name is required'); return; }
+  let variables;
+  try { variables = JSON.parse(document.getElementById('tc-vars').value || '{}'); }
+  catch { showErr('tc-error', 'Variables must be valid JSON'); return; }
+  const caps = document.getElementById('tc-caps').value.split(',').map(s=>s.trim()).filter(Boolean);
+  const body = {
+    name, description: document.getElementById('tc-desc').value,
+    category: document.getElementById('tc-category').value,
+    kind: document.getElementById('tc-kind').value,
+    endpoint_url: document.getElementById('tc-endpoint').value || null,
+    method: document.getElementById('tc-method').value,
+    state: document.getElementById('tc-state').value,
+    enabled: false, capabilities: caps, variables
+  };
+  try {
+    await api('POST', '/tools', body);
+    closeModal('tool-create-modal');
+    await loadTools();
+  } catch(e) { showErr('tc-error', e.message); }
+}
+
+// ── Approval Queue ─────────────────────────────────────────────────────────
+async function loadQueue() {
+  try {
+    const tools = await api('GET', '/tools');
+    const pending = tools.filter(t => ['pending_review','quarantined','requested'].includes(t.state));
+    const el = document.getElementById('queue-table');
+    if (!pending.length) { el.innerHTML = '<div class="empty">No items pending review</div>'; return; }
+    el.innerHTML = `<table><thead><tr><th>Name</th><th>Category</th><th>State</th><th>Capabilities</th><th>Actions</th></tr></thead><tbody>
+      ${pending.map(t => `<tr>
+        <td><strong>${t.name}</strong><div class="text-muted">${t.description||''}</div></td>
+        <td><span class="tag">${t.category}</span></td>
+        <td>${stateBadge(t.state)}</td>
+        <td><div class="tag-list">${(t.capabilities||[]).map(c=>`<span class="tag">${c}</span>`).join('')||'—'}</div></td>
+        <td><div class="actions">
+          <button class="btn btn-success btn-sm" onclick="setState('${t.tool_id}','approved');loadQueue()">Approve</button>
+          <button class="btn btn-ghost btn-sm" onclick="setState('${t.tool_id}','quarantined');loadQueue()">Quarantine</button>
+          <button class="btn btn-danger btn-sm" onclick="setState('${t.tool_id}','retired');loadQueue()">Reject</button>
+        </div></td>
+      </tr>`).join('')}</tbody></table>`;
+  } catch(e) { document.getElementById('queue-table').innerHTML = `<div class="empty text-danger">${e.message}</div>`; }
+}
+
+// ── Grants ─────────────────────────────────────────────────────────────────
+async function loadGrants() {
+  try {
+    const grants = await api('GET', '/grants');
+    renderGrants(grants);
+  } catch(e) { document.getElementById('grants-table').innerHTML = `<div class="empty text-danger">${e.message}</div>`; }
+}
+
+function renderGrants(grants) {
+  const el = document.getElementById('grants-table');
+  if (!grants.length) { el.innerHTML = '<div class="empty">No grants</div>'; return; }
+  const toolMap = {};
+  allTools.forEach(t => toolMap[t.tool_id] = t.name);
+  el.innerHTML = `<table><thead><tr><th>Tool</th><th>Principal</th><th>Name</th><th>Enabled</th><th>Granted By</th><th>Actions</th></tr></thead><tbody>
+    ${grants.map(g => `<tr>
+      <td><code>${toolMap[g.tool_id]||g.tool_id}</code></td>
+      <td><span class="tag">${g.principal_type}</span> <code>${g.principal_id}</code></td>
+      <td>${g.principal_name||'—'}</td>
+      <td>${g.enabled ? '✅' : '❌'}</td>
+      <td class="text-muted">${g.granted_by||'—'}</td>
+      <td><div class="actions">
+        <button class="btn btn-ghost btn-sm" onclick="toggleGrant(${g.id},${!g.enabled})">${g.enabled?'Disable':'Enable'}</button>
+        <button class="btn btn-danger btn-sm" onclick="revokeGrant(${g.id})">Revoke</button>
+      </div></td>
+    </tr>`).join('')}</tbody></table>`;
+}
+
+async function toggleGrant(id, enabled) {
+  try { await api('PATCH', `/grants/${id}`, { enabled }); await loadGrants(); }
+  catch(e) { alert(e.message); }
+}
+
+async function revokeGrant(id) {
+  if (!confirm('Revoke this grant permanently?')) return;
+  try { await api('DELETE', `/grants/${id}`); await loadGrants(); }
+  catch(e) { alert(e.message); }
+}
+
+async function submitGrant() {
+  hideErr('gc-error');
+  const toolId = document.getElementById('gc-tool').value;
+  const pid = document.getElementById('gc-pid').value.trim();
+  if (!toolId) { showErr('gc-error', 'Select a tool'); return; }
+  if (!pid) { showErr('gc-error', 'Principal ID is required'); return; }
+  let vars;
+  try { vars = JSON.parse(document.getElementById('gc-vars').value || '{}'); }
+  catch { showErr('gc-error', 'Variable overrides must be valid JSON'); return; }
+  try {
+    await api('POST', '/grants', {
+      tool_id: toolId,
+      principal_type: document.getElementById('gc-ptype').value,
+      principal_id: pid,
+      principal_name: document.getElementById('gc-pname').value,
+      enabled: true,
+      variables_override: vars,
+    });
+    closeModal('grant-create-modal');
+    await loadGrants();
+  } catch(e) { showErr('gc-error', e.message); }
+}
+
+// ── Filters ────────────────────────────────────────────────────────────────
+async function loadFiltersPage() {
+  await loadToolList();
+}
+
+async function loadFilters() {
+  const toolId = document.getElementById('filter-tool-select').value;
+  const addBtn = document.getElementById('filter-add-btn');
+  addBtn.disabled = !toolId;
+  currentFilterToolId = toolId || null;
+  if (!toolId) {
+    document.getElementById('filters-table').innerHTML = '<div class="empty">Select a tool to see its filters</div>';
+    return;
+  }
+  try {
+    const filters = await api('GET', `/tools/${toolId}/filters`);
+    renderFilters(filters, toolId);
+  } catch(e) {
+    document.getElementById('filters-table').innerHTML = `<div class="empty text-danger">${e.message}</div>`;
+  }
+}
+
+function renderFilters(filters, toolId) {
+  const el = document.getElementById('filters-table');
+  if (!filters.length) { el.innerHTML = '<div class="empty">No filters on this tool</div>'; return; }
+  el.innerHTML = `<table><thead><tr><th>Name</th><th>Phase</th><th>Type</th><th>Scope</th><th>Priority</th><th>Action</th><th>Enabled</th><th></th></tr></thead><tbody>
+    ${filters.map(f => `<tr>
+      <td><strong>${f.name}</strong></td>
+      <td><span class="badge badge-${f.phase}">${f.phase}</span></td>
+      <td><span class="badge badge-${f.filter_type}">${f.filter_type}</span></td>
+      <td>${f.scope === 'all' ? 'All' : f.principals.join(', ')}</td>
+      <td>${f.priority}</td>
+      <td><code>${f.action}</code></td>
+      <td>${f.enabled ? '✅' : '❌'}</td>
+      <td><div class="actions">
+        <button class="btn btn-ghost btn-sm" onclick="toggleFilter('${toolId}',${f.id},${!f.enabled})">${f.enabled?'Disable':'Enable'}</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteFilter('${toolId}',${f.id},'${f.name}')">Delete</button>
+      </div></td>
+    </tr>`).join('')}</tbody></table>`;
+}
+
+async function toggleFilter(toolId, filterId, enabled) {
+  try { await api('PATCH', `/tools/${toolId}/filters/${filterId}`, { enabled }); await loadFilters(); }
+  catch(e) { alert(e.message); }
+}
+
+async function deleteFilter(toolId, filterId, name) {
+  if (!confirm(`Delete filter "${name}"?`)) return;
+  try { await api('DELETE', `/tools/${toolId}/filters/${filterId}`); await loadFilters(); }
+  catch(e) { alert(e.message); }
+}
+
+function openFilterWizard() {
+  if (!currentFilterToolId) return;
+  currentEditFilterId = null;
+  resetFilterWizard();
+  openModal('filter-wizard-modal');
+}
+
+function resetFilterWizard() {
+  document.getElementById('fw-l-name').value = '';
+  document.getElementById('fw-l-message').value = '';
+  document.getElementById('fw-l-priority').value = 100;
+  document.getElementById('fw-l-scope').value = 'all';
+  document.getElementById('fw-l-principals').value = '';
+  document.getElementById('fw-l-scope-input').style.display = 'none';
+  document.getElementById('fw-l-transparent').checked = true;
+  document.getElementById('fw-a-name').value = '';
+  document.getElementById('fw-a-agent').value = '';
+  document.getElementById('fw-a-question').value = '';
+  document.getElementById('fw-a-priority').value = 100;
+  document.getElementById('fw-a-scope').value = 'all';
+  document.getElementById('fw-a-scope-input').style.display = 'none';
+  document.getElementById('fw-a-dryrun-result').style.display = 'none';
+  document.getElementById('fw-conditions').innerHTML = '';
+  addCondition();
+  hideErr('fw-error');
+  switchWizardType();
+}
+
+function switchWizardType() {
+  const t = document.getElementById('fw-type').value;
+  document.getElementById('fw-logical').style.display = t === 'logical' ? 'block' : 'none';
+  document.getElementById('fw-agent').style.display = t === 'agent' ? 'block' : 'none';
+}
+
+function toggleScopeInput(prefix) {
+  const scope = document.getElementById(`fw-${prefix}-scope`).value;
+  document.getElementById(`fw-${prefix}-scope-input`).style.display = scope === 'selected' ? 'block' : 'none';
+}
+
+function toggleActionFields() {
+  const action = document.getElementById('fw-l-action').value;
+  document.getElementById('fw-l-redact-group').style.display = action === 'redact' ? 'block' : 'none';
+  document.getElementById('fw-l-replace-group').style.display = action === 'replace' ? 'block' : 'none';
+}
+
+function addCondition() {
+  const el = document.getElementById('fw-conditions');
+  const idx = el.children.length;
+  const row = document.createElement('div');
+  row.className = 'condition-row';
+  row.id = `cond-${idx}`;
+  row.innerHTML = `
+    <input type="text" placeholder="target (e.g. destination)" style="flex:1.2">
+    <select style="flex:1">
+      <option value="ends_with">ends with</option>
+      <option value="starts_with">starts with</option>
+      <option value="contains">contains</option>
+      <option value="not_contains">not contains</option>
+      <option value="equals">equals</option>
+      <option value="matches">matches regex</option>
+      <option value="in_list">in list</option>
+      <option value="not_in_list">not in list</option>
+    </select>
+    <input type="text" placeholder="value" style="flex:1.5">
+    <button class="btn btn-danger btn-sm" onclick="this.parentElement.remove()">✕</button>
+  `;
+  el.appendChild(row);
+}
+
+function gatherConditions() {
+  const rows = document.getElementById('fw-conditions').children;
+  return Array.from(rows).map(row => {
+    const inputs = row.querySelectorAll('input');
+    const sel = row.querySelector('select');
+    return { target: inputs[0].value.trim(), operator: sel.value, value: inputs[1].value.trim() };
+  }).filter(c => c.target && c.value);
+}
+
+async function runDryRun() {
+  const toolId = currentFilterToolId;
+  const filterId = currentEditFilterId;
+  if (!filterId || !toolId) { return; }
+  const payload = parseJSON(document.getElementById('fw-a-dryrun-payload').value, {});
+  try {
+    const r = await api('POST', `/tools/${toolId}/filters/${filterId}/dry-run`, { payload });
+    const el = document.getElementById('fw-a-dryrun-result');
+    el.textContent = JSON.stringify(r, null, 2);
+    el.style.display = 'block';
+  } catch(e) {
+    const el = document.getElementById('fw-a-dryrun-result');
+    el.textContent = 'Error: ' + e.message;
+    el.style.display = 'block';
+  }
+}
+
+async function submitFilter() {
+  hideErr('fw-error');
+  const toolId = currentFilterToolId;
+  if (!toolId) return;
+  const type = document.getElementById('fw-type').value;
+
+  let body;
+  if (type === 'logical') {
+    const name = document.getElementById('fw-l-name').value.trim();
+    if (!name) { showErr('fw-error', 'Name is required'); return; }
+    const conditions = gatherConditions();
+    const action = document.getElementById('fw-l-action').value;
+    const config = {
+      conditions,
+      join: document.getElementById('fw-l-join').value,
+      action,
+      message: document.getElementById('fw-l-message').value,
+    };
+    if (action === 'redact') config.redact_fields = document.getElementById('fw-l-redact').value.split(',').map(s=>s.trim()).filter(Boolean);
+    if (action === 'replace') { try { config.replacement = JSON.parse(document.getElementById('fw-l-replace').value); } catch{} }
+    const scope = document.getElementById('fw-l-scope').value;
+    body = {
+      name, filter_type: 'logical', phase: document.getElementById('fw-l-phase').value,
+      priority: parseInt(document.getElementById('fw-l-priority').value),
+      scope,
+      principals: scope === 'selected' ? document.getElementById('fw-l-principals').value.split(',').map(s=>s.trim()).filter(Boolean) : [],
+      action,
+      transparent: document.getElementById('fw-l-transparent').checked,
+      enabled: true, config,
+    };
+  } else {
+    const name = document.getElementById('fw-a-name').value.trim();
+    const agentId = document.getElementById('fw-a-agent').value.trim();
+    const question = document.getElementById('fw-a-question').value.trim();
+    if (!name || !agentId || !question) { showErr('fw-error', 'Name, evaluator agent, and policy question are required'); return; }
+    const scope = document.getElementById('fw-a-scope').value;
+    const conf = parseFloat(document.getElementById('fw-a-confidence').value);
+    const config = {
+      evaluator_agent_id: agentId, policy_question: question,
+      fallback: document.getElementById('fw-a-fallback').value,
+      action: 'deny',
+    };
+    if (!isNaN(conf)) config.confidence_threshold = conf;
+    body = {
+      name, filter_type: 'agent', phase: document.getElementById('fw-a-phase').value,
+      priority: parseInt(document.getElementById('fw-a-priority').value),
+      scope,
+      principals: scope === 'selected' ? document.getElementById('fw-a-principals').value.split(',').map(s=>s.trim()).filter(Boolean) : [],
+      action: 'deny',
+      transparent: document.getElementById('fw-a-transparent').checked,
+      enabled: true, config,
+    };
+  }
+
+  try {
+    await api('POST', `/tools/${toolId}/filters`, body);
+    closeModal('filter-wizard-modal');
+    await loadFilters();
+  } catch(e) { showErr('fw-error', e.message); }
+}
+
+// ── Logs ───────────────────────────────────────────────────────────────────
+async function loadLogs() {
+  const status = document.getElementById('log-status-filter').value;
+  let url = '/logs?limit=100';
+  if (status) url += '&status=' + status;
+  try {
+    const logs = await api('GET', url);
+    renderLogs(logs);
+  } catch(e) { document.getElementById('logs-table').innerHTML = `<div class="empty text-danger">${e.message}</div>`; }
+}
+
+function renderLogs(logs) {
+  const el = document.getElementById('logs-table');
+  if (!logs.length) { el.innerHTML = '<div class="empty">No log entries</div>'; return; }
+  el.innerHTML = `<table><thead><tr><th>Time</th><th>Tool</th><th>Principal</th><th>Status</th><th>Duration</th><th></th></tr></thead><tbody>
+    ${logs.map(l => `<tr>
+      <td class="text-muted">${ts(l.created_at)}</td>
+      <td><code>${l.tool_name}</code></td>
+      <td>${l.principal_name||l.principal_id} <span class="text-muted">(${l.principal_type})</span></td>
+      <td>${stateBadge(l.status)}${l.rejection_reason?`<div class="text-muted" style="font-size:.75rem">${l.rejection_reason.slice(0,60)}</div>`:''}</td>
+      <td class="text-muted">${l.duration_ms != null ? l.duration_ms+'ms' : '—'}</td>
+      <td><button class="btn btn-ghost btn-sm" onclick="viewLog(${l.id})">Detail</button></td>
+    </tr>`).join('')}</tbody></table>`;
+}
+
+async function viewLog(id) {
+  try {
+    const l = await api('GET', `/logs/${id}`);
+    const toolMap = {};
+    allTools.forEach(t => toolMap[t.tool_id] = t.name);
+    document.getElementById('log-detail-body').innerHTML = `
+      <div class="form-row">
+        <div><label>Tool</label><code>${l.tool_name}</code></div>
+        <div><label>Status</label>${stateBadge(l.status)}</div>
+      </div>
+      <div class="form-row mt-2">
+        <div><label>Principal</label>${l.principal_name||l.principal_id} (${l.principal_type})</div>
+        <div><label>Duration</label>${l.duration_ms != null ? l.duration_ms+'ms' : '—'}</div>
+      </div>
+      ${l.rejection_reason?`<div class="form-group mt-2"><label>Rejection Reason</label><div class="text-danger">${l.rejection_reason}</div></div>`:''}
+      ${l.session_id?`<div class="form-group"><label>Session ID</label><code>${l.session_id}</code></div>`:''}
+      <div class="form-group mt-2"><label>Incoming Payload</label><pre>${fmt(l.incoming_payload_json)}</pre></div>
+      <div class="form-group"><label>Filtered Request</label><pre>${fmt(l.filtered_request_json)}</pre></div>
+      <div class="form-group"><label>Raw Tool Response</label><pre>${fmt(l.raw_tool_response_json)}</pre></div>
+      <div class="form-group"><label>Filtered Response</label><pre>${fmt(l.filtered_response_json)}</pre></div>
+      ${l.evaluator_agent_id?`<div class="form-group"><label>Evaluator</label><code>${l.evaluator_agent_id}</code>${l.evaluator_model?' → '+l.evaluator_model:''}</div>`:''}
+      <div class="form-group"><label>Request ID</label><code>${l.request_id}</code></div>
+      <div class="text-muted mt-2">${ts(l.created_at)}</div>
+    `;
+    openModal('log-detail-modal');
+  } catch(e) { alert(e.message); }
+}
+
+function fmt(jsonStr) {
+  try { return JSON.stringify(JSON.parse(jsonStr), null, 2); } catch { return jsonStr; }
+}
+
+// ── Requests ───────────────────────────────────────────────────────────────
+async function loadRequests() {
+  const status = document.getElementById('req-status-filter').value;
+  let url = '/requests';
+  if (status) url += '?status=' + status;
+  try {
+    const reqs = await api('GET', url);
+    renderRequests(reqs);
+  } catch(e) { document.getElementById('requests-table').innerHTML = `<div class="empty text-danger">${e.message}</div>`; }
+}
+
+function renderRequests(reqs) {
+  const el = document.getElementById('requests-table');
+  if (!reqs.length) { el.innerHTML = '<div class="empty">No install requests</div>'; return; }
+  el.innerHTML = `<table><thead><tr><th>Proposed Name</th><th>From</th><th>Source</th><th>Status</th><th>Notes</th><th>Actions</th></tr></thead><tbody>
+    ${reqs.map(r => `<tr>
+      <td><strong>${r.proposed_name}</strong></td>
+      <td>${r.requested_by_principal_name||r.requested_by_principal_id} <span class="text-muted">(${r.requested_by_principal_type})</span></td>
+      <td><span class="tag">${r.source}</span></td>
+      <td>${stateBadge(r.status)}</td>
+      <td class="text-muted">${r.notes||'—'}</td>
+      <td><div class="actions">${r.status==='requested'?`
+        <button class="btn btn-success btn-sm" onclick="resolveRequest(${r.id},'approve')">Approve</button>
+        <button class="btn btn-danger btn-sm" onclick="resolveRequest(${r.id},'reject')">Reject</button>
+      `:r.admin_notes?`<span class="text-muted">${r.admin_notes}</span>`:''}</div></td>
+    </tr>`).join('')}</tbody></table>`;
+}
+
+async function resolveRequest(id, action) {
+  const notes = prompt(`${action === 'approve' ? 'Approval' : 'Rejection'} notes (optional):`) || '';
+  try {
+    await api('POST', `/requests/${id}/${action}`, { admin_notes: notes });
+    await loadRequests();
+  } catch(e) { alert(e.message); }
+}
+</script>
+</body>
+</html>

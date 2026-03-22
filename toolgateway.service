@@ -1,0 +1,15 @@
+[Unit]
+Description=ToolGateway — Tool control plane for the local AI stack
+After=network.target
+
+[Service]
+Type=simple
+User=sedjwin
+WorkingDirectory=/home/sedjwin/ToolGateway
+ExecStart=/home/sedjwin/ToolGateway/.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 13377
+Restart=on-failure
+RestartSec=5
+EnvironmentFile=/home/sedjwin/ToolGateway/.env
+
+[Install]
+WantedBy=multi-user.target
