@@ -1,0 +1,15 @@
+[Unit]
+Description=ToolGateway FastAPI service
+After=network.target
+
+[Service]
+Type=simple
+User=sedjwin
+WorkingDirectory=/home/sedjwin/ToolGateway
+EnvironmentFile=/home/sedjwin/ToolGateway/.env
+ExecStart=/home/sedjwin/ToolGateway/.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8006
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target
