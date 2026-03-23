@@ -2,13 +2,14 @@
 
 Tool control plane for the local AI stack. Manages tool registry, approval workflow, execution policy, and full audit logging.
 
-**Port:** `13377`
+**Port:** `13377` (external) / `8006` (internal)
 
 ---
 
 ## Overview
 
 - **Tool registry** — register tools (HTTP, echo), track versions, manage lifecycle state
+- **SkillMD** — markdown instructions stored per tool; fetched by AgentManager when enabling a tool for an agent
 - **Approval workflow** — all tools require admin approval before execution; new versions reset to pending
 - **Grant model** — per-principal execution permissions with variable overrides
 - **Policy filters** — incoming and outgoing filter pipeline (logical rules or AI-evaluated checks)
@@ -23,9 +24,9 @@ Tool control plane for the local AI stack. Manages tool registry, approval workf
 |---------|---------|
 | `AIGateway` | Models, provider routing, LLM requests |
 | `ToolGateway` | Tool registry, grants, filters, execution |
-| `AgentManager` | Agent identity, memory, intended permissions |
+| `AgentManager` | Agent identity, session orchestration, tool calling |
 
-`AgentManager` should never execute tools directly — it requests execution from `ToolGateway`.
+`AgentManager` enables tools per agent (caching SkillMD at config time) and calls `POST /api/execute` at inference time using the agent's `um_api_key`.
 
 ---
 
@@ -40,6 +41,7 @@ Set via environment variables or `.env`:
 | `TOOLGATEWAY_DATABASE_URL` | `sqlite+aiosqlite:///./data/toolgateway.db` | Database |
 | `TOOLGATEWAY_USERMANAGER_URL` | `http://localhost:8005` | UserManager base URL |
 | `TOOLGATEWAY_AIGATEWAY_URL` | `http://localhost:8001` | AIGateway (for agent-evaluated filters) |
+| `TOOLGATEWAY_AGENTMANAGER_URL` | `http://localhost:8003` | AgentManager (for agent dropdown in admin UI) |
 
 ---
 
@@ -48,7 +50,7 @@ Set via environment variables or `.env`:
 All endpoints that require auth accept:
 
 - **JWT Bearer** — `Authorization: Bearer <token>` (from UserManager `/auth/login`)
-- **API key** — `Authorization: Bearer <key>` (from AgentManager for agent principals)
+- **API key** — `Authorization: Bearer <key>` (agent principals, from AgentManager `um_api_key`)
 
 Admin endpoints additionally require `is_admin=True` on the validated principal.
 
@@ -69,14 +71,26 @@ Admin endpoints additionally require `is_admin=True` on the validated principal.
 | POST | `/api/tools/{id}/versions` | Admin | Add a version (resets to pending_review) |
 | POST | `/api/tools/{id}/versions/{vid}/approve` | Admin | Approve a version |
 
+**Tool fields include:**
+
+| Field | Description |
+|-------|-------------|
+| `skill_md` | Markdown instructions for the LLM on how/when to call this tool. Fetched by AgentManager when enabling the tool for an agent. Edit via the tool detail panel in the admin UI. |
+
 ### Grants
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| GET | `/api/grants` | Admin | List all grants (filter by tool_id/principal_id) |
+| GET | `/api/grants` | Principal | List grants — admins see all; non-admins see own grants only |
 | POST | `/api/grants` | Admin | Create a grant |
 | PATCH | `/api/grants/{id}` | Admin | Update enabled state / variable overrides |
 | DELETE | `/api/grants/{id}` | Admin | Revoke a grant |
+
+### Agents
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| GET | `/api/agents` | Admin | List agents (proxied from AgentManager) — used by admin UI grant creation |
 
 ### Filters
 
@@ -205,14 +219,20 @@ Example: deny emails outside @ourpersonalemail.com
 
 ---
 
+## SkillMD
+
+Each tool has a `skill_md` field — markdown instructions telling the LLM when and how to call the tool. This is edited in the tool detail panel of the admin UI and fetched by AgentManager when an admin enables the tool for an agent. The content is cached on the agent record and injected into the system prompt at inference time, so no runtime ToolGateway call is needed per message.
+
+---
+
 ## Admin Panel
 
 Browser UI at `/`. Tabs:
 
 - **Dashboard** — stats, recent executions
-- **Tools** — register tools, manage state, approve versions
+- **Tools** — register tools, manage state, approve versions, edit SkillMD
 - **Approval Queue** — tools awaiting review
-- **Grants** — per-principal execution permissions
+- **Grants** — per-principal execution permissions (agent dropdown auto-populated from AgentManager)
 - **Filters** — filter wizard (logical + agent-evaluated), dry-run panel
 - **Logs** — full execution audit trail
 - **Requests** — tool install requests with approve/reject
