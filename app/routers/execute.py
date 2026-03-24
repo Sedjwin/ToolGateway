@@ -122,28 +122,30 @@ async def execute_tool(
         )
         return denial
 
-    # Check grant
-    grant_result = await db.execute(
-        select(ToolGrant).where(
-            ToolGrant.tool_id == tool.tool_id,
-            ToolGrant.principal_id == str(principal["user_id"]),
-            ToolGrant.enabled == True,  # noqa: E712
+    # Local tools (kind="local") are builtin system tools — no per-agent grant required.
+    # System-wide enable/disable is controlled via tool.enabled above.
+    if tool.kind != "local":
+        grant_result = await db.execute(
+            select(ToolGrant).where(
+                ToolGrant.tool_id == tool.tool_id,
+                ToolGrant.principal_id == str(principal["user_id"]),
+                ToolGrant.enabled == True,  # noqa: E712
+            )
         )
-    )
-    grant = grant_result.scalar_one_or_none()
-    if not grant:
-        denial = _rejected(
-            request_id=request_id, tool_name=call.tool_name, principal=principal,
-            reason="No active grant for this principal",
-        )
-        await _log(
-            db, request_id=request_id, tool=tool, call=call, principal=principal,
-            filtered_request=call.payload, raw_response={},
-            filtered_response=denial.model_dump(),
-            incoming_filter_id=None, outgoing_filter_id=None,
-            status="rejected", rejection_reason=denial.reason,
-        )
-        return denial
+        grant = grant_result.scalar_one_or_none()
+        if not grant:
+            denial = _rejected(
+                request_id=request_id, tool_name=call.tool_name, principal=principal,
+                reason="No active grant for this principal",
+            )
+            await _log(
+                db, request_id=request_id, tool=tool, call=call, principal=principal,
+                filtered_request=call.payload, raw_response={},
+                filtered_response=denial.model_dump(),
+                incoming_filter_id=None, outgoing_filter_id=None,
+                status="rejected", rejection_reason=denial.reason,
+            )
+            return denial
 
     # Load filters
     filters_result = await db.execute(

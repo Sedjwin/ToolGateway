@@ -11,8 +11,8 @@ from pydantic import BaseModel, Field
 class ToolCreate(BaseModel):
     name: str
     description: str = ""
-    category: Literal["first_party", "custom_local", "external", "skill"] = "custom_local"
-    kind: Literal["http", "echo"] = "http"
+    category: Literal["first_party", "custom_local", "external", "skill", "builtin"] = "custom_local"
+    kind: Literal["http", "echo", "local"] = "http"
     endpoint_url: Optional[str] = None
     method: str = "POST"
     state: str = "requested"
