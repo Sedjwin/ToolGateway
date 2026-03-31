@@ -112,11 +112,13 @@ _FIRSTPARTY_TOOLS = [
         "enabled": True,
         "capabilities_json": '["filesystem_reads", "filesystem_writes"]',
         "skill_md": (
-            "Read, write, and edit files anywhere on the host using absolute paths.\n"
+            "Read, write, edit, and search files anywhere on the host using absolute paths.\n"
             "{tool:system.files|operation=read|path=/absolute/path}\n"
             "{tool:system.files|operation=write|path=/absolute/path|content=<text>}\n"
             "{tool:system.files|operation=edit|path=/absolute/path|start_line=N|end_line=M|new_content=<text>}\n"
             "{tool:system.files|operation=list|path=/absolute/dir}\n"
+            "{tool:system.files|operation=search|path=/absolute/dir|content=<glob pattern e.g. *.py>}\n"
+            "{tool:system.files|operation=grep|path=/absolute/dir|content=<regex pattern>}\n"
             "Always read a file before editing to get correct line numbers. Use \\n for newlines in content."
         ),
     },
@@ -137,18 +139,21 @@ _FIRSTPARTY_TOOLS = [
     },
     {
         "name": "web.download",
-        "description": "Fetch the text content of any HTTP/HTTPS URL. HTML is stripped by default. Returns content inline. Requires explicit admin grant.",
+        "description": "Download any file from a URL directly into the agent's workspace/downloads/ folder. Supports all file types. Requires explicit admin grant.",
         "category": "first_party",
         "kind": "http",
         "endpoint_url": "http://127.0.0.1:8012/api/download",
         "method": "POST",
         "state": "active",
         "enabled": True,
-        "capabilities_json": '["network_access"]',
+        "capabilities_json": '["network_access", "filesystem_writes"]',
         "skill_md": (
-            "Fetch a web page or text file with {tool:web.download|url=<full URL>|strip_html=true}.\n"
-            "Returns text content inline (HTML stripped by default). Binary files are not supported.\n"
-            "To save the content, follow up with {tool:workspace.files|operation=write|path=downloads/<filename>|content=<content>}."
+            "Download any file (pdf, mp4, zip, gif, html, etc.) and save to your workspace/downloads/ folder.\n"
+            "{tool:web.download|url=<full URL>|agent_id={current_agent_id}|session_id={current_session_id}}\n"
+            "Optional: add |filename=<name.ext> to override the filename.\n"
+            "To read/browse a web page as text instead of saving, use fetch_only mode:\n"
+            "{tool:web.download|url=<full URL>|fetch_only=true}\n"
+            "Returns saved_to path (relative to workspace) on success. Use workspace.files to read or move the file."
         ),
     },
 ]
