@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import get_principal
 from app.config import settings
-from app.database import init_db, get_db
+from app.database import init_db, get_db, AsyncSessionLocal
 from app.models import Tool, ToolExecutionLog, ToolGrant, ToolInstallRequest
 from app.routers import builtins, execute, filters, logs, requests, tools
 from app.routers.grants import router as grants_router, agents_router
@@ -77,12 +77,103 @@ async def get_stats(db: AsyncSession) -> StatsOut:
     )
 
 
+# ── Builtin tool seed ─────────────────────────────────────────────────────────
+
+_BUILTIN_TOOLS = [
+    {
+        "name": "workspace.files",
+        "description": "Read, write, and edit files in the agent's session workspace. Paths are relative to the workspace/ folder inside the current session directory.",
+        "category": "builtin",
+        "kind": "local",
+        "state": "active",
+        "enabled": True,
+        "capabilities_json": '["filesystem_reads", "filesystem_writes"]',
+        "skill_md": (
+            "Read, write, and edit files in your session workspace using "
+            "{tool:workspace.files|operation=read|path=...}, "
+            "{tool:workspace.files|operation=write|path=...|content=...}, "
+            "{tool:workspace.files|operation=edit|path=...|start_line=N|end_line=M|new_content=...}, "
+            "or {tool:workspace.files|operation=list|path=.}. "
+            "Paths are relative to your workspace folder."
+        ),
+    },
+]
+
+# First-party HTTP tools — seeded as approved + enabled, but still require per-agent grants.
+_FIRSTPARTY_TOOLS = [
+    {
+        "name": "system.files",
+        "description": "Read, write, and edit any file on the host filesystem. Full absolute-path access. Requires explicit admin grant.",
+        "category": "first_party",
+        "kind": "http",
+        "endpoint_url": "http://127.0.0.1:8011/api/execute",
+        "method": "POST",
+        "state": "active",
+        "enabled": True,
+        "capabilities_json": '["filesystem_reads", "filesystem_writes"]',
+        "skill_md": (
+            "Read, write, and edit files anywhere on the host using absolute paths.\n"
+            "{tool:system.files|operation=read|path=/absolute/path}\n"
+            "{tool:system.files|operation=write|path=/absolute/path|content=<text>}\n"
+            "{tool:system.files|operation=edit|path=/absolute/path|start_line=N|end_line=M|new_content=<text>}\n"
+            "{tool:system.files|operation=list|path=/absolute/dir}\n"
+            "Always read a file before editing to get correct line numbers. Use \\n for newlines in content."
+        ),
+    },
+    {
+        "name": "web.search",
+        "description": "Search the web using Google Custom Search. Returns titles, URLs, and snippets. Requires explicit admin grant.",
+        "category": "first_party",
+        "kind": "http",
+        "endpoint_url": "http://127.0.0.1:8012/api/search",
+        "method": "POST",
+        "state": "active",
+        "enabled": True,
+        "capabilities_json": '["network_access"]',
+        "skill_md": (
+            "Search the web with {tool:web.search|query=<search terms>|num=10}.\n"
+            "Returns a list of results with title, URL, and snippet. num controls result count (1–10, default 10)."
+        ),
+    },
+    {
+        "name": "web.download",
+        "description": "Fetch the text content of any HTTP/HTTPS URL. HTML is stripped by default. Returns content inline. Requires explicit admin grant.",
+        "category": "first_party",
+        "kind": "http",
+        "endpoint_url": "http://127.0.0.1:8012/api/download",
+        "method": "POST",
+        "state": "active",
+        "enabled": True,
+        "capabilities_json": '["network_access"]',
+        "skill_md": (
+            "Fetch a web page or text file with {tool:web.download|url=<full URL>|strip_html=true}.\n"
+            "Returns text content inline (HTML stripped by default). Binary files are not supported.\n"
+            "To save the content, follow up with {tool:workspace.files|operation=write|path=downloads/<filename>|content=<content>}."
+        ),
+    },
+]
+
+
+async def _seed_builtin_tools() -> None:
+    """Upsert builtin and first-party tools on startup. Safe to run repeatedly — skips existing names."""
+    from sqlalchemy import select
+
+    async with AsyncSessionLocal() as db:
+        for spec in [*_BUILTIN_TOOLS, *_FIRSTPARTY_TOOLS]:
+            result = await db.execute(select(Tool).where(Tool.name == spec["name"]))
+            if result.scalar_one_or_none() is None:
+                db.add(Tool(**spec))
+                logger.info("Seeded tool: %s", spec["name"])
+        await db.commit()
+
+
 # ── Lifespan ──────────────────────────────────────────────────────────────────
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     await init_db()
+    await _seed_builtin_tools()
     logger.info("ToolGateway starting on %s:%d", settings.host, settings.port)
     yield
     logger.info("ToolGateway shutting down.")
