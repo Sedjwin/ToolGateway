@@ -519,10 +519,10 @@ async function afterLogin(data) {
 }
 
 if (token) {
-  // Try to use saved token
-  api('GET', '/stats').then(() => {
+  // Try to use saved token — must hit an auth-required endpoint to detect stale tokens
+  api('GET', '/auth/me').then(data => {
     document.getElementById('login-overlay').style.display = 'none';
-    afterLogin({ username: 'Admin' });
+    afterLogin(data);
   }).catch(() => {
     localStorage.removeItem('tg_token');
     token = null;

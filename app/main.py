@@ -11,6 +11,7 @@ from fastapi.staticfiles import StaticFiles
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.auth import get_principal
 from app.config import settings
 from app.database import init_db, get_db
 from app.models import Tool, ToolExecutionLog, ToolGrant, ToolInstallRequest
@@ -125,6 +126,12 @@ async def proxy_login(body: dict):
     except Exception as exc:
         from fastapi import HTTPException
         raise HTTPException(503, f"UserManager unavailable: {exc}")
+
+
+@app.get("/api/auth/me", tags=["auth"], include_in_schema=False)
+async def auth_me(principal: dict = Depends(get_principal)):
+    """Validate the current token and return principal info. Used by admin UI on startup."""
+    return principal
 
 
 @app.get("/health", include_in_schema=False)
