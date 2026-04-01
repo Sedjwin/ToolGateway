@@ -89,12 +89,8 @@ _BUILTIN_TOOLS = [
         "enabled": True,
         "capabilities_json": '["filesystem_reads", "filesystem_writes"]',
         "skill_md": (
-            "Read, write, and edit files in your session workspace using "
-            "{tool:workspace.files|operation=read|path=...}, "
-            "{tool:workspace.files|operation=write|path=...|content=...}, "
-            "{tool:workspace.files|operation=edit|path=...|start_line=N|end_line=M|new_content=...}, "
-            "or {tool:workspace.files|operation=list|path=.}. "
-            "Paths are relative to your workspace folder."
+            "NOTE: workspace.files is a local tool — its full documentation is injected "
+            "automatically via LOCAL_TOOL_SKILL_MD. This entry exists for permission auditing only."
         ),
     },
 ]
