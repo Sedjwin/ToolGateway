@@ -148,27 +148,50 @@ _FIRSTPARTY_TOOLS = [
         "enabled": True,
         "capabilities_json": '["network_access", "filesystem_writes"]',
         "skill_md": (
-            "Download any file (pdf, mp4, zip, gif, html, etc.) and save to your workspace/downloads/ folder.\n"
-            "{tool:web.download|url=<full URL>|agent_id={current_agent_id}|session_id={current_session_id}}\n"
-            "Optional: add |filename=<name.ext> to override the filename.\n"
-            "To read/browse a web page as text instead of saving, use fetch_only mode:\n"
-            "{tool:web.download|url=<full URL>|fetch_only=true}\n"
-            "Returns saved_to path (relative to workspace) on success. Use workspace.files to read or move the file."
+            "## web.download\n\n"
+            "**MODE 1 — Save a file to your workspace** (images, PDFs, ZIPs, any binary or text):\n"
+            "{tool:web.download|url=<direct file URL>|agent_id={current_agent_id}|session_id={current_session_id}}\n"
+            "  - `agent_id` and `session_id` are REQUIRED — copy the exact values from your system prompt.\n"
+            "  - Optional: add |filename=<name.ext> to override the auto-detected filename.\n"
+            "  - Returns: {saved_to, filename, content_type, size_bytes} — use saved_to path with workspace.files or workspace.link.\n\n"
+            "**MODE 2 — Browse a web page as text** (read HTML content, no file saved):\n"
+            "{tool:web.download|url=<page URL>|fetch_only=true}\n"
+            "  - Returns page text inline. Use this to find direct download URLs on a page, then use MODE 1 to download the actual file.\n\n"
+            "**IMPORTANT:**\n"
+            "- Passing strip_html or any other parameter not listed above will be IGNORED.\n"
+            "- Do NOT use fetch_only=true to download images — it only returns text/HTML, not binary data.\n"
+            "- If a URL returns 403 (forbidden) or 429 (rate limited), try a different source URL."
         ),
     },
 ]
 
 
 async def _seed_builtin_tools() -> None:
-    """Upsert builtin and first-party tools on startup. Safe to run repeatedly — skips existing names."""
+    """Upsert builtin and first-party tools on startup.
+    New tools are inserted. Existing tools have skill_md and description refreshed
+    so changes in code are always reflected without manual DB edits.
+    User-controlled fields (state, enabled) are left untouched on existing rows.
+    """
     from sqlalchemy import select
 
     async with AsyncSessionLocal() as db:
         for spec in [*_BUILTIN_TOOLS, *_FIRSTPARTY_TOOLS]:
             result = await db.execute(select(Tool).where(Tool.name == spec["name"]))
-            if result.scalar_one_or_none() is None:
+            existing = result.scalar_one_or_none()
+            if existing is None:
                 db.add(Tool(**spec))
                 logger.info("Seeded tool: %s", spec["name"])
+            else:
+                # Always sync skill_md and description — source of truth is main.py
+                changed = False
+                if existing.skill_md != spec.get("skill_md"):
+                    existing.skill_md = spec.get("skill_md")
+                    changed = True
+                if existing.description != spec.get("description"):
+                    existing.description = spec.get("description")
+                    changed = True
+                if changed:
+                    logger.info("Updated skill_md/description for tool: %s", spec["name"])
         await db.commit()
 
 
